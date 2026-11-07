@@ -1,7 +1,7 @@
 name: Build
 
 on:
-  push:
+  # push:
   workflow_dispatch:
 
 jobs:
@@ -48,7 +48,7 @@ jobs:
           name: nrf52811_xxaa
           path: |
             _build/nrf52811_xxaa.hex
-            SDK/17.1.0_ddde560/components/softdevice/s112/hex/s112_nrf52_7.2.0_softdevice.hex
+            SDK/17.1.0_ddde560/components/softdevice/s112/hex/s112_nrf52_7.3.0_softdevice.hex
   
   win32:
     runs-on: windows-latest
