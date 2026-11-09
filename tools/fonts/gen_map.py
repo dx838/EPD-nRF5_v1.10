@@ -3,8 +3,9 @@
 
 把要新增的文字写在下面的 ADD_CHARS 常量里即可。
 用法（在工程根目录执行）：
-    python tools/fonts/gen_map.py -o tools/fonts/new          # 含 ADD_CHARS
-    python tools/fonts/gen_map.py --base -o tools/fonts/base  # 不含新增字，用于校验 BDF
+    python tools/fonts/gen_map.py -o tools/fonts/new                 # 两套 map 都加 ADD_CHARS
+    python tools/fonts/gen_map.py --font wqy9 -o tools/fonts/new   # 只给 wqy9 加
+    python tools/fonts/gen_map.py --base -o tools/fonts/base        # 都不加，用于校验 BDF
 """
 from __future__ import annotations
 
@@ -67,19 +68,21 @@ def glyphs(src: str, name: str) -> set[int]:
 def main() -> None:
     ap = argparse.ArgumentParser(description='从 GUI/fonts.c 生成 bdfconv 字符集 map')
     _ = ap.add_argument('--add', default=ADD_CHARS, help='新增文字，默认取脚本顶部的 ADD_CHARS 常量')
+    _ = ap.add_argument('--font', choices=tuple(FONTS), help='只把新增文字加入指定 map（wqy9 / wqy12）；不传则两套都加')
     _ = ap.add_argument('--base', action='store_true', help='忽略新增文字，只输出现有字库字符集（用于校验 BDF）')
-    _ = ap.add_argument('-o', '--outdir', type=Path, default=DEFAULT_OUTDIR, help='输出目录，默认 tools/font/')
+    _ = ap.add_argument('-o', '--outdir', type=Path, default=DEFAULT_OUTDIR, help='输出目录，默认 tools/fonts/')
     args = ap.parse_args()
 
     src = FONTS_C.read_text(encoding='utf-8')
+    target = cast(str | None, args.font)
     add_text = '' if cast(bool, args.base) else cast(str, args.add)
     outdir = cast(Path, args.outdir)
     added: set[int] = {ord(c) for c in add_text if ord(c) > 0}
     outdir.mkdir(parents=True, exist_ok=True)
-    print('待加入字符: %s（去重后 %d 个）' % (add_text or '（空）', len(added)))
+    print('待加入字符: %s（去重后 %d 个，作用范围: %s）' % (add_text or '（空）', len(added), target or 'wqy9 + wqy12'))
     for key, name in FONTS.items():
         base = glyphs(src, name)
-        codes = base | added
+        codes = (base | added) if target is None or target == key else base
         new = sorted(codes - base)
         path = outdir / (key + '.map')
         text = ', '.join(str(c) if c < 128 else '$%04X' % c for c in sorted(codes))
