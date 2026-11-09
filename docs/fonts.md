@@ -30,7 +30,7 @@
 ## 二、字体资源下载地址
 
 生成字库需要两样东西：**`bdfconv` 工具** + **BDF 点阵字体源文件**（文泉驿 Bitmap Song，两套字号）。
-以下文件都仅供 PC 端生成使用，建议统一放在 `tools/font/`，不要加入固件编译（BDF 约 4~7 MB）。
+以下文件都仅供 PC 端生成使用，建议统一放在 `tools/fonts/`，不要加入固件编译（BDF 约 4~7 MB）。
 
 ### 工具
 
@@ -94,8 +94,8 @@ bold 版只以 PCF 形式发行，需转换成 BDF。
 
 ### 0. 准备目录
 
-`tools/font/gen_map.py` 已随工程提供（Python 3 标准库，无需安装依赖）。
-在 `tools/font/` 中另外放入：`bdfconv.exe` 和两份 BDF；map 文件由第 2 步生成。
+`tools/fonts/gen_map.py` 已随工程提供（Python 3 标准库，无需安装依赖）。
+在 `tools/fonts/` 中另外放入：`bdfconv.exe` 和两份 BDF；map 文件由第 2 步生成。
 
 ### 1. 查新字的 Unicode 码点
 
@@ -112,13 +112,13 @@ python -c "print(hex(ord('宝')))"  # 0x5b9d
 ### 2. 构造完整字符集（关键：不能丢字）
 
 不要手工整理字符清单：`GUI/fonts.h` 的清单只是注释，可能与字库实际内容有出入。
-把要新增的文字写进 `tools/font/gen_map.py` 顶部的 `ADD_CHARS` 常量（例如 `ADD_CHARS = '大宝节小宝节'`），
+把要新增的文字写进 `tools/fonts/gen_map.py` 顶部的 `ADD_CHARS` 常量（例如 `ADD_CHARS = '大宝节小宝节'`），
 脚本会**直接从 `GUI/fonts.c` 反解两套字库的全部码点**，再把常量里的字合并进去，生成两份 map 文件。
 常量里重复的字、以及字库中已有的字都会自动去重/跳过，不会让字库变大。
 脚本还会自检「解析出的字形数 == 字库头部声明的字形数」（228 / 142），不一致就报错退出，避免悄悄丢字。
 
 ```powershell
-python tools/font/gen_map.py -o tools/font/new
+python tools/fonts/gen_map.py -o tools/fonts/new
 ```
 
 Linux / MSYS2 下把 `python` 换成 `python3`。参数：
@@ -133,8 +133,8 @@ Linux / MSYS2 下把 `python` 换成 `python3`。参数：
 
 ```text
 待加入字符: 大宝节小宝节（去重后 4 个）
-u8g2_font_wqy9_t_lunar: 原有 228 个，实际新增 1 个 (U+5B9D 宝) -> tools/font/new/wqy9.map
-u8g2_font_wqy12_t_lunar: 原有 142 个，实际新增 1 个 (U+5B9D 宝) -> tools/font/new/wqy12.map
+u8g2_font_wqy9_t_lunar: 原有 228 个，实际新增 1 个 (U+5B9D 宝) -> tools/fonts/new/wqy9.map
+u8g2_font_wqy12_t_lunar: 原有 142 个，实际新增 1 个 (U+5B9D 宝) -> tools/fonts/new/wqy12.map
 ```
 
 「大 / 小 / 节」本来就在字库里，常量里重复出现的字也只算一次，所以实际只新增了 `$5B9D`（宝），字形数 228→229、142→143。
@@ -155,9 +155,9 @@ u8g2_font_wqy12_t_lunar: 原有 142 个，实际新增 1 个 (U+5B9D 宝) -> too
 以下命令均从工程根目录执行：
 
 ```powershell
-python tools/font/gen_map.py --base -o tools/font/base
-.\tools\font\bdfconv.exe -b 0 -f 1 -M tools/font/base/wqy9.map  -n u8g2_font_wqy9_t_lunar  -o tools/font/wqy9_base.c  tools/font/wenquanyi_9pt.bdf
-.\tools\font\bdfconv.exe -b 0 -f 1 -M tools/font/base/wqy12.map -n u8g2_font_wqy12_t_lunar -o tools/font/wqy12_base.c tools/font/wenquanyi_12ptb.bdf
+python tools/fonts/gen_map.py --base -o tools/fonts/base
+.\tools\fonts\bdfconv.exe -b 0 -f 1 -M tools/fonts/base/wqy9.map  -n u8g2_font_wqy9_t_lunar  -o tools/fonts/wqy9_base.c  tools/fonts/wenquanyi_9ptb.bdf
+.\tools\fonts\bdfconv.exe -b 0 -f 1 -M tools/fonts/base/wqy12.map -n u8g2_font_wqy12_t_lunar -o tools/fonts/wqy12_base.c tools/fonts/wenquanyi_12ptb.bdf
 ```
 
 判定标准：`Glyphs` 的**字形数**必须是 228 / 142（说明字符集反解正确）；`Fontname`、`BBX Build Mode: 0` 与数组长度用于判断 BDF 是否选对。
@@ -166,17 +166,17 @@ python tools/font/gen_map.py --base -o tools/font/base
 ### 4. 正式生成（含新字）
 
 ```powershell
-.\tools\font\bdfconv.exe -b 0 -f 1 -M tools/font/new/wqy9.map  -n u8g2_font_wqy9_t_lunar  -o tools/font/wqy9.c  tools/font/wenquanyi_9pt.bdf
-.\tools\font\bdfconv.exe -b 0 -f 1 -M tools/font/new/wqy12.map -n u8g2_font_wqy12_t_lunar -o tools/font/wqy12.c tools/font/wenquanyi_12ptb.bdf
+.\tools\fonts\bdfconv.exe -b 0 -f 1 -M tools/fonts/new/wqy9.map  -n u8g2_font_wqy9_t_lunar  -o tools/fonts/wqy9.c  tools/fonts/wenquanyi_9ptb.bdf
+.\tools\fonts\bdfconv.exe -b 0 -f 1 -M tools/fonts/new/wqy12.map -n u8g2_font_wqy12_t_lunar -o tools/fonts/wqy12.c tools/fonts/wenquanyi_12ptb.bdf
 ```
 
-MSYS2 环境下把 `.\tools\font\bdfconv.exe` 换成 `./tools/font/bdfconv`。参数含义：
+MSYS2 环境下把 `.\tools\fonts\bdfconv.exe` 换成 `./tools/fonts/bdfconv`。参数含义：
 
 | 参数 | 值 | 说明 |
 |---|---|---|
 | `-b` | `0` | BBX build mode，须与现有字库头 `BBX Build Mode: 0` 一致 |
 | `-f` | `1` | 输出 u8g2 字体格式 |
-| `-M` | `tools/font/new/wqy9.map` / `wqy12.map` | 字符集文件，两套字库各用各的（与 `-m` 二选一，同时给时 `-M` 优先） |
+| `-M` | `tools/fonts/new/wqy9.map` / `wqy12.map` | 字符集文件，两套字库各用各的（与 `-m` 二选一，同时给时 `-M` 优先） |
 | `-n` | 数组名 | 必须与 `GUI/fonts.h` 的 `extern` 名称一致 |
 | `-o` | 输出 `.c` | 生成结果 |
 | 末尾位置参数 | BDF 路径 | 输入点阵字体 |
@@ -187,7 +187,7 @@ MSYS2 环境下把 `.\tools\font\bdfconv.exe` 换成 `./tools/font/bdfconv`。�
 
 | 文件 | 改动 |
 |---|---|
-| `GUI/fonts.c` | 用 `tools/font/wqy9.c` / `tools/font/wqy12.c` 的数组定义段分别替换 `:9`、`:152` 两个数组；保留文件顶部 `#include "fonts.h"`；数组长度由工具自动写好 |
+| `GUI/fonts.c` | 用 `tools/fonts/wqy9.c` / `tools/fonts/wqy12.c` 的数组定义段分别替换 `:9`、`:152` 两个数组；保留文件顶部 `#include "fonts.h"`；数组长度由工具自动写好 |
 | `GUI/fonts.h` | 在 `:7-25` 的字符集清单里补上「宝」（供以后再次生成） |
 | `GUI/GUI.c` | `:24-33` 的名称改为「大宝节」「小宝节」，文件保持 UTF-8 编码 |
 
@@ -212,8 +212,8 @@ MSYS2 环境下把 `.\tools\font\bdfconv.exe` 换成 `./tools/font/bdfconv`。�
 
 ## 五、附：检查字库里是否已有某个字
 
-如需单独查询某个字是否已在字库中，可将下面脚本保存为 `tools/font/check_font.py`，在工程根目录执行 `python tools/font/check_font.py 宝 大 小`。
-`tools/font/gen_map.py` 内含相同的解析逻辑（并带字形数自检）；下面脚本只用于快速查询，无需编译固件：
+如需单独查询某个字是否已在字库中，可将下面脚本保存为 `tools/fonts/check_font.py`，在工程根目录执行 `python tools/fonts/check_font.py 宝 大 小`。
+`tools/fonts/gen_map.py` 内含相同的解析逻辑（并带字形数自检）；下面脚本只用于快速查询，无需编译固件：
 
 ```python
 import ast
