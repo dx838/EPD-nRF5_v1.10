@@ -53,7 +53,11 @@
 
 #define DEVICE_NAME                      "NRF_EPD"                                      /**< Name of device. Will be included in the advertising data. */
 #define APP_ADV_INTERVAL                 1600                                           /**< The advertising interval (in units of 0.625 ms. This value corresponds to 1 s). */
-#define APP_ADV_TIMEOUT_IN_SECONDS       120                                            /**< The advertising timeout (in units of seconds). */
+//#define APP_ADV_TIMEOUT_IN_SECONDS       120                                            /**< The advertising timeout (in units of seconds). */
+// 广播宏（A 组）— main.c:56
+#define APP_ADV_TIMEOUT_IN_SECONDS       150   /**< 单段广播 150 s，须 < limited disc 的 180 s 上限 */
+#define APP_ADV_WINDOW_RESTARTS          5     /**< 续播 5 次：150 s × 6 段 = 上电 15 分钟蓝牙窗口 */
+//广播宏（A 组）— main.c:56
 #define APP_TIMER_PRESCALER              0                                              /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_OP_QUEUE_SIZE          4                                              /**< Size of timer operation queues. */
 
@@ -81,8 +85,10 @@
 #define SCHED_MAX_EVENT_DATA_SIZE       EPD_GUI_SCHD_EVENT_DATA_SIZE                    /**< Maximum size of scheduler events. */
 #define SCHED_QUEUE_SIZE                10                                              /**< Maximum number of events in the scheduler queue. */
 
-#define CLOCK_TIMER_INTERVAL             TIMER_TICKS(1000)                              /**< Clock timer interval (ticks). */
-
+//#define CLOCK_TIMER_INTERVAL             TIMER_TICKS(1000)                              /**< Clock timer interval (ticks). */
+//时钟定时器宏（B 组）— main.c:84
+#define CLOCK_TIMER_INTERVAL             TIMER_TICKS(10000)   /**< 每 10 s 唤醒一次，减少 CPU 唤醒；30 s 喂狗仍安全（WDT 60 s） */
+//时钟定时器宏（B 组）— main.c:84
 #define DEAD_BEEF                        0xDEADBEEF                                     /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
 #if defined(S112)
@@ -101,6 +107,10 @@ APP_TIMER_DEF(m_clock_timer_id);                                                
 static nrf_drv_wdt_channel_id            m_wdt_channel_id;
 static uint32_t                          m_wdt_last_feed_time = 0;
 static uint32_t                          m_resetreas;
+//新增计数变量（A 组）— main.c:103 之后、// clang-format on 之前
+static uint8_t                          m_adv_restarts;   /**< 广播续播计数；静态变量复位自动归零 = 仅断电/复位才重新开窗 */
+//新增计数变量（A 组）— main.c:103 之后、// clang-format on 之前
+
 // clang-format on
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -123,9 +133,15 @@ uint32_t timestamp(void) { return m_timestamp; }
 
 // set the timestamp
 void set_timestamp(uint32_t timestamp) {
+    // app_timer_stop(m_clock_timer_id);
+    // m_timestamp = timestamp;
+    // app_timer_start(m_clock_timer_id, CLOCK_TIMER_INTERVAL, NULL);
+    //对齐时间戳（B 组）— main.c:125-129
     app_timer_stop(m_clock_timer_id);
-    m_timestamp = timestamp;
+    // 对齐到 10 s：否则 timestamp % 60 / % 86400 永远不成立，日历和时钟都不再刷新
+    m_timestamp = timestamp - timestamp % 10;
     app_timer_start(m_clock_timer_id, CLOCK_TIMER_INTERVAL, NULL);
+    //对齐时间戳（B 组）— main.c:125-129
 }
 
 // reload the wdt channel
@@ -222,7 +238,10 @@ static void ble_dfu_evt_handler(ble_dfu_t* p_dfu, ble_dfu_evt_t* p_evt) {
 static void clock_timer_timeout_handler(void* p_context) {
     UNUSED_PARAMETER(p_context);
 
-    m_timestamp++;
+    // m_timestamp++;
+    //时间戳步进（B 组）— main.c:225
+    m_timestamp += 10;   // 与 CLOCK_TIMER_INTERVAL 保持一致，否则时间走慢 10 倍
+    //时间戳步进（B 组）— main.c:225
 
     ble_epd_on_timer(&m_epd, m_timestamp, false);
 }
@@ -405,6 +424,18 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
     switch (ble_adv_evt) {
         case BLE_ADV_EVT_FAST:
             break;
+        // case BLE_ADV_EVT_IDLE:
+        //     NRF_LOG_INFO("advertising timeout\n");
+        //     if (m_epd.config.wakeup_pin != 0xFF) {
+        //         if (m_epd.config.display_mode == MODE_PICTURE)
+        //             sleep_mode_enter();
+        //         else
+        //             setup_wakeup_pin(m_epd.config.wakeup_pin);
+        //     } else {
+        //         advertising_start();
+        //     }
+        //     break;
+        //广播超时处理（A 组）— main.c:408-418
         case BLE_ADV_EVT_IDLE:
             NRF_LOG_INFO("advertising timeout\n");
             if (m_epd.config.wakeup_pin != 0xFF) {
@@ -412,10 +443,12 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt) {
                     sleep_mode_enter();
                 else
                     setup_wakeup_pin(m_epd.config.wakeup_pin);
-            } else {
+            } else if (m_adv_restarts++ < APP_ADV_WINDOW_RESTARTS) {
+                // 上电 15 分钟内续播；到点后不再续播，广播已由 SoftDevice 超时自然停止
                 advertising_start();
             }
             break;
+        //广播超时处理（A 组）— main.c:408-418
         default:
             break;
     }
